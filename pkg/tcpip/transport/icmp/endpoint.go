@@ -19,6 +19,7 @@ import (
 	"io"
 	"time"
 
+	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/sync"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/buffer"
@@ -291,6 +292,7 @@ func (e *endpoint) write(p tcpip.Payloader, opts tcpip.WriteOptions) (int64, tcp
 
 	switch netProto, pktInfo := e.net.NetProto(), ctx.PacketInfo(); netProto {
 	case header.IPv4ProtocolNumber:
+		log.Infof("send4() called")
 		if err := send4(e.stack, &ctx, ident, v, pktInfo.MaxHeaderLength); err != nil {
 			return 0, err
 		}
@@ -348,6 +350,7 @@ func (e *endpoint) GetSockOpt(opt tcpip.GettableSocketOption) tcpip.Error {
 
 func send4(s *stack.Stack, ctx *network.WriteContext, ident uint16, data buffer.View, maxHeaderLength uint16) tcpip.Error {
 	if len(data) < header.ICMPv4MinimumSize {
+		log.Infof("len(data) is smaller than min size")
 		return &tcpip.ErrInvalidEndpointState{}
 	}
 
