@@ -16,6 +16,7 @@ package hostinet
 
 import (
 	"fmt"
+	"runtime"
 
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/abi/linux"
@@ -371,13 +372,13 @@ func (s *socketOpsCommon) Shutdown(_ *kernel.Task, how int) *syserr.Error {
 }
 
 // GetSockOpt implements socket.Socket.GetSockOpt.
-func (s *socketOpsCommon) GetSockOpt(t *kernel.Task, level int, name int, _ hostarch.Addr, outLen int) (marshal.Marshallable, *syserr.Error) {
+func (s *socketOpsCommon) GetSockOpt(t *kernel.Task, level int, name int, optValAddr hostarch.Addr, outLen int) (marshal.Marshallable, *syserr.Error) {
 	if outLen < 0 {
 		return nil, syserr.ErrInvalidArgument
 	}
 
 	// Only allow known and safe options.
-	optlen := getSockOptLen(t, level, name)
+	optlen, copyIn := getSockOptLen(t, level, name)
 	switch level {
 	case linux.SOL_IP:
 		switch name {
@@ -409,14 +410,25 @@ func (s *socketOpsCommon) GetSockOpt(t *kernel.Task, level int, name int, _ host
 		return nil, syserr.ErrProtocolNotAvailable // ENOPROTOOPT
 	}
 	if outLen < optlen {
+		log.Infof("outLen(%d) < optlen(%d)", outLen, optlen)
 		return nil, syserr.ErrInvalidArgument
 	}
 
-	opt, err := getsockopt(s.fd, level, name, optlen)
+	opt := make([]byte, optlen)
+	if copyIn {
+		// This is non-intuitive as normally in getsockopt one assumes that the
+		// parameter is purely an out parameter. But some custom options do require
+		// copying in the optVal so we do it here only for those custom options.
+		if _, err := t.CopyInBytes(optValAddr, opt); err != nil {
+			return nil, syserr.FromError(err)
+		}
+	}
+	opt, err := getsockopt(s.fd, level, name, opt)
 	if err != nil {
 		return nil, syserr.FromError(err)
 	}
 	optP := primitive.ByteSlice(opt)
+	runtime.KeepAlive(opt)
 	return &optP, nil
 }
 
@@ -742,7 +754,8 @@ func translateIOSyscallError(err error) error {
 // State implements socket.Socket.State.
 func (s *socketOpsCommon) State() uint32 {
 	info := linux.TCPInfo{}
-	buf, err := getsockopt(s.fd, unix.SOL_TCP, unix.TCP_INFO, linux.SizeOfTCPInfo)
+	opt := make([]byte, linux.SizeOfTCPInfo)
+	buf, err := getsockopt(s.fd, unix.SOL_TCP, unix.TCP_INFO, opt)
 	if err != nil {
 		if err != unix.ENOPROTOOPT {
 			log.Warningf("Failed to get TCP socket info from %+v: %v", s, err)

@@ -21,8 +21,8 @@ import (
 	"gvisor.dev/gvisor/pkg/sentry/kernel"
 )
 
-func getSockOptLen(t *kernel.Task, level, name int) int {
-	return 0 // No custom options.
+func getSockOptLen(t *kernel.Task, level, name int) (len int, copyIn bool) {
+	return 0, false // No custom options.
 }
 
 func setSockOptLen(t *kernel.Task, level, name int) int {
