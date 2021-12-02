@@ -53,6 +53,9 @@ afterSymlink:
 	// is consistent with Linux: fs/namei.c:walk_component() => lookup_fast()
 	// calls d_revalidate(), but walk_component() => handle_dots() does not.
 	if name == "." {
+		if err := rp.CheckMount(ctx, d.VFSDentry()); err != nil {
+			return nil, err
+		}
 		rp.Advance()
 		return d, nil
 	}

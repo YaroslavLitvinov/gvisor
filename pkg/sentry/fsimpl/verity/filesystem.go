@@ -108,6 +108,9 @@ func (fs *filesystem) stepLocked(ctx context.Context, rp *vfs.ResolvingPath, d *
 afterSymlink:
 	name := rp.Component()
 	if name == "." {
+		if err := rp.CheckMount(ctx, &d.vfsd); err != nil {
+			return nil, err
+		}
 		rp.Advance()
 		return d, nil
 	}
