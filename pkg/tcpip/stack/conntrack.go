@@ -332,6 +332,19 @@ func getHeaders(pkt *PacketBuffer) (netHdr header.Network, transHdr header.Trans
 			return netHdr, transHdr, true, true
 		}
 	case header.ICMPv6ProtocolNumber:
+		icmpHeader := header.ICMPv6(pkt.TransportHeader().View())
+		if len(icmpHeader) < header.ICMPv6MinimumSize {
+			break
+		}
+
+		switch icmpType := icmpHeader.Type(); icmpType {
+		case header.ICMPv6EchoRequest, header.ICMPv6EchoReply:
+			return pkt.Network(), icmpHeader, false, true
+		case header.ICMPv6DstUnreachable, header.ICMPv6PacketTooBig, header.ICMPv6TimeExceeded, header.ICMPv6ParamProblem:
+		default:
+			panic(fmt.Sprintf("unexpected ICMPv6 type = %d", icmpType))
+		}
+
 		h, ok := pkt.Data().PullUp(header.IPv6MinimumSize)
 		if !ok {
 			panic(fmt.Sprintf("should have a valid IPv6 packet; only have %d bytes, want at least %d bytes", pkt.Data().Size(), header.IPv6MinimumSize))
@@ -458,6 +471,13 @@ func getTupleID(pkt *PacketBuffer) (tupleID, getTupleIDDisposition) {
 		}
 
 		switch icmp.Type() {
+		case header.ICMPv6EchoRequest:
+			return getTupleIDForEchoPacket(pkt, icmp.Ident(), true /* request */), getTupleIDOKAndAllowNewConn
+		case header.ICMPv6EchoReply:
+			// Do not create a new connection in response to a reply packet as only
+			// the first packet of a connection should create a conntrack entry but
+			// a reply is never the first packet sent for a connection.
+			return getTupleIDForEchoPacket(pkt, icmp.Ident(), false /* request */), getTupleIDOKAndDontAllowNewConn
 		case header.ICMPv6DstUnreachable, header.ICMPv6PacketTooBig, header.ICMPv6TimeExceeded, header.ICMPv6ParamProblem:
 		default:
 			return tupleID{}, getTupleIDNotOK
