@@ -169,16 +169,6 @@ func (e *endpoint) WritePacket(r stack.RouteInfo, protocol tcpip.NetworkProtocol
 	return e.Endpoint.WritePacket(r, protocol, pkt)
 }
 
-// WritePackets implements the stack.LinkEndpoint interface. It is called by
-// higher-level protocols to write packets; it just logs the packet and
-// forwards the request to the lower endpoint.
-func (e *endpoint) WritePackets(r stack.RouteInfo, pkts stack.PacketBufferList, protocol tcpip.NetworkProtocolNumber) (int, tcpip.Error) {
-	for pkt := pkts.Front(); pkt != nil; pkt = pkt.Next() {
-		e.dumpPacket(directionSend, protocol, pkt)
-	}
-	return e.Endpoint.WritePackets(r, pkts, protocol)
-}
-
 func logPacket(prefix string, dir direction, protocol tcpip.NetworkProtocolNumber, pkt *stack.PacketBuffer) {
 	// Figure out the network layer info.
 	var transProto uint8

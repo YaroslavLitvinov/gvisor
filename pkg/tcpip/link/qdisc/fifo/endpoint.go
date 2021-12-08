@@ -56,28 +56,35 @@ func New(lower stack.LinkEndpoint, n int, queueLen int) stack.LinkEndpoint {
 	e := &endpoint{
 		lower: lower,
 	}
+	_, isBatchable := lower.(stack.BatchableLinkEndpoint)
+
 	// Create the required dispatchers
 	for i := 0; i < n; i++ {
 		qd := &queueDispatcher{
 			q:     &packetBufferQueue{limit: queueLen},
 			lower: lower,
 		}
+
 		e.dispatchers = append(e.dispatchers, qd)
 		e.wg.Add(1)
 		go func() {
 			defer e.wg.Done()
-			qd.dispatchLoop()
+			if isBatchable {
+				qd.batchedDispatchLoop()
+			} else {
+				qd.dispatchLoop()
+			}
 		}()
 	}
 	return e
 }
 
-func (q *queueDispatcher) dispatchLoop() {
+func (q *queueDispatcher) batchedDispatchLoop() {
 	s := sleep.Sleeper{}
 	s.AddWaker(&q.newPacketWaker)
 	s.AddWaker(&q.closeWaker)
 	defer s.Done()
-
+	lower := q.lower.(stack.BatchableLinkEndpoint)
 	const batchSize = 32
 	var batch stack.PacketBufferList
 	for {
@@ -93,9 +100,28 @@ func (q *queueDispatcher) dispatchLoop() {
 			}
 			// We pass a protocol of zero here because each packet carries its
 			// NetworkProtocol.
-			q.lower.WritePackets(stack.RouteInfo{}, batch, 0 /* protocol */)
+			lower.WritePackets(stack.RouteInfo{}, batch, 0 /* protocol */)
 			batch.DecRef()
 			batch.Reset()
+		}
+	}
+}
+
+func (q *queueDispatcher) dispatchLoop() {
+	s := sleep.Sleeper{}
+	s.AddWaker(&q.newPacketWaker)
+	s.AddWaker(&q.closeWaker)
+	defer s.Done()
+
+	for {
+		w := s.Fetch(true)
+		if w == &q.closeWaker {
+			return
+		}
+		// Must otherwise be the newPacketWaker.
+		for pkt := q.q.dequeue(); pkt != nil; pkt = q.q.dequeue() {
+			q.lower.WritePacket(pkt.EgressRoute, pkt.NetworkProtocolNumber, pkt)
+			pkt.DecRef()
 		}
 	}
 }
@@ -172,31 +198,6 @@ func (e *endpoint) WritePacket(r stack.RouteInfo, protocol tcpip.NetworkProtocol
 	}
 	d.newPacketWaker.Assert()
 	return nil
-}
-
-// WritePackets implements stack.LinkEndpoint.WritePackets.
-//
-// Each packet in the packet buffer list must have the following fields
-// populated:
-//  - pkt.EgressRoute
-//  - pkt.GSOOptions
-//  - pkt.NetworkProtocolNumber
-func (e *endpoint) WritePackets(r stack.RouteInfo, pkts stack.PacketBufferList, protocol tcpip.NetworkProtocolNumber) (int, tcpip.Error) {
-	enqueued := 0
-	for pkt := pkts.Front(); pkt != nil; {
-		d := e.dispatchers[int(pkt.Hash)%len(e.dispatchers)]
-		nxt := pkt.Next()
-		if !d.q.enqueue(pkt) {
-			if enqueued > 0 {
-				d.newPacketWaker.Assert()
-			}
-			return enqueued, &tcpip.ErrNoBufferSpace{}
-		}
-		pkt = nxt
-		enqueued++
-		d.newPacketWaker.Assert()
-	}
-	return enqueued, nil
 }
 
 // Wait implements stack.LinkEndpoint.Wait.

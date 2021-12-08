@@ -107,11 +107,6 @@ func (e *Endpoint) WritePacket(r stack.RouteInfo, protocol tcpip.NetworkProtocol
 	return e.child.WritePacket(r, protocol, pkt)
 }
 
-// WritePackets implements stack.LinkEndpoint.
-func (e *Endpoint) WritePackets(r stack.RouteInfo, pkts stack.PacketBufferList, protocol tcpip.NetworkProtocolNumber) (int, tcpip.Error) {
-	return e.child.WritePackets(r, pkts, protocol)
-}
-
 // Wait implements stack.LinkEndpoint.
 func (e *Endpoint) Wait() {
 	e.child.Wait()

@@ -320,21 +320,14 @@ func (n *nic) WritePacket(r *Route, protocol tcpip.NetworkProtocolNumber, pkt *P
 	return err
 }
 
-func (n *nic) writePacketBuffer(r RouteInfo, protocol tcpip.NetworkProtocolNumber, pkt pendingPacketBuffer) (int, tcpip.Error) {
-	switch pkt := pkt.(type) {
-	case *PacketBuffer:
-		if err := n.writePacket(r, protocol, pkt); err != nil {
-			return 0, err
-		}
-		return 1, nil
-	case *PacketBufferList:
-		return n.writePackets(r, protocol, *pkt)
-	default:
-		panic(fmt.Sprintf("unrecognized pending packet buffer type = %T", pkt))
+func (n *nic) writePacketBuffer(r RouteInfo, protocol tcpip.NetworkProtocolNumber, pkt *PacketBuffer) (int, tcpip.Error) {
+	if err := n.writePacket(r, protocol, pkt); err != nil {
+		return 0, err
 	}
+	return 1, nil
 }
 
-func (n *nic) enqueuePacketBuffer(r *Route, protocol tcpip.NetworkProtocolNumber, pkt pendingPacketBuffer) (int, tcpip.Error) {
+func (n *nic) enqueuePacketBuffer(r *Route, protocol tcpip.NetworkProtocolNumber, pkt *PacketBuffer) (int, tcpip.Error) {
 	routeInfo, _, err := r.resolvedFields(nil)
 	switch err.(type) {
 	case nil:
@@ -386,29 +379,6 @@ func (n *nic) writePacket(r RouteInfo, protocol tcpip.NetworkProtocolNumber, pkt
 	n.stats.tx.packets.Increment()
 	n.stats.tx.bytes.IncrementBy(uint64(numBytes))
 	return nil
-}
-
-// WritePackets implements NetworkLinkEndpoint.
-func (n *nic) WritePackets(r *Route, pkts PacketBufferList, protocol tcpip.NetworkProtocolNumber) (int, tcpip.Error) {
-	return n.enqueuePacketBuffer(r, protocol, &pkts)
-}
-
-func (n *nic) writePackets(r RouteInfo, protocol tcpip.NetworkProtocolNumber, pkts PacketBufferList) (int, tcpip.Error) {
-	for pkt := pkts.Front(); pkt != nil; pkt = pkt.Next() {
-		pkt.EgressRoute = r
-		pkt.NetworkProtocolNumber = protocol
-		n.deliverOutboundPacket(r.RemoteLinkAddress, pkt)
-	}
-
-	writtenPackets, err := n.LinkEndpoint.WritePackets(r, pkts, protocol)
-	n.stats.tx.packets.IncrementBy(uint64(writtenPackets))
-	writtenBytes := 0
-	for i, pb := 0, pkts.Front(); i < writtenPackets && pb != nil; i, pb = i+1, pb.Next() {
-		writtenBytes += pb.Size()
-	}
-
-	n.stats.tx.bytes.IncrementBy(uint64(writtenBytes))
-	return writtenPackets, err
 }
 
 // setSpoofing enables or disables address spoofing.

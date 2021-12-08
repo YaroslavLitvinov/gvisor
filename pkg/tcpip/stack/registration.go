@@ -576,16 +576,6 @@ type NetworkInterface interface {
 	// network and transport header must be set.
 	WritePacket(*Route, tcpip.NetworkProtocolNumber, *PacketBuffer) tcpip.Error
 
-	// WritePackets writes packets with the given protocol through the given
-	// route. Must not be called with an empty list of packet buffers.
-	//
-	// WritePackets may modify the packet buffers.
-	//
-	// Right now, WritePackets is used only when the software segmentation
-	// offload is enabled. If it will be used for something else, syscall filters
-	// may need to be updated.
-	WritePackets(*Route, PacketBufferList, tcpip.NetworkProtocolNumber) (int, tcpip.Error)
-
 	// HandleNeighborProbe processes an incoming neighbor probe (e.g. ARP
 	// request or NDP Neighbor Solicitation).
 	//
@@ -641,11 +631,6 @@ type NetworkEndpoint interface {
 	// protocol. It may modify pkt. pkt.TransportHeader must have
 	// already been set.
 	WritePacket(r *Route, params NetworkHeaderParams, pkt *PacketBuffer) tcpip.Error
-
-	// WritePackets writes packets to the given destination address and
-	// protocol. pkts must not be zero length. It may modify pkts and
-	// underlying packets.
-	WritePackets(r *Route, pkts PacketBufferList, params NetworkHeaderParams) (int, tcpip.Error)
 
 	// WriteHeaderIncludedPacket writes a packet that includes a network
 	// header to the given destination address. It may modify pkt.
@@ -846,16 +831,6 @@ type LinkEndpoint interface {
 	// r.LocalLinkAddress if it is provided.
 	WritePacket(RouteInfo, tcpip.NetworkProtocolNumber, *PacketBuffer) tcpip.Error
 
-	// WritePackets writes packets with the given protocol and route. Must not be
-	// called with an empty list of packet buffers.
-	//
-	// WritePackets may modify the packet buffers.
-	//
-	// Right now, WritePackets is used only when the software segmentation
-	// offload is enabled. If it will be used for something else, syscall filters
-	// may need to be updated.
-	WritePackets(RouteInfo, PacketBufferList, tcpip.NetworkProtocolNumber) (int, tcpip.Error)
-
 	// WriteRawPacket writes a packet directly to the link.
 	//
 	// If the link-layer has its own header, the payload must already include the
@@ -863,6 +838,17 @@ type LinkEndpoint interface {
 	//
 	// WriteRawPacket may modify the packet.
 	WriteRawPacket(*PacketBuffer) tcpip.Error
+}
+
+// BatchableLinkEndpoint is a LinkEndpoint capable of emitting multiple packets at once.
+type BatchableLinkEndpoint interface {
+	LinkEndpoint
+
+	// WritePackets writes packets with the given protocol and route. Must not be
+	// called with an empty list of packet buffers.
+	//
+	// WritePackets may modify the packet buffers.
+	WritePackets(RouteInfo, PacketBufferList, tcpip.NetworkProtocolNumber) (int, tcpip.Error)
 }
 
 // InjectableLinkEndpoint is a LinkEndpoint where inbound packets are

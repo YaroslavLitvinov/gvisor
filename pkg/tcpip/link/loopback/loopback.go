@@ -80,11 +80,6 @@ func (e *endpoint) WritePacket(_ stack.RouteInfo, _ tcpip.NetworkProtocolNumber,
 	return e.WriteRawPacket(pkt)
 }
 
-// WritePackets implements stack.LinkEndpoint.WritePackets.
-func (e *endpoint) WritePackets(stack.RouteInfo, stack.PacketBufferList, tcpip.NetworkProtocolNumber) (int, tcpip.Error) {
-	panic("not implemented")
-}
-
 // ARPHardwareType implements stack.LinkEndpoint.ARPHardwareType.
 func (*endpoint) ARPHardwareType() header.ARPHardwareType {
 	return header.ARPHardwareLoopback

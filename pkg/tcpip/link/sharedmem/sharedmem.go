@@ -184,7 +184,7 @@ type endpoint struct {
 
 // New creates a new shared-memory-based endpoint. Buffers will be broken up
 // into buffers of "bufferSize" bytes.
-func New(opts Options) (stack.LinkEndpoint, error) {
+func New(opts Options) (stack.BatchableLinkEndpoint, error) {
 	e := &endpoint{
 		mtu:        opts.MTU,
 		bufferSize: opts.BufferSize,

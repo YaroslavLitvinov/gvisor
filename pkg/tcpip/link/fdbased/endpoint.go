@@ -97,7 +97,7 @@ func (p PacketDispatchMode) String() string {
 	}
 }
 
-var _ stack.LinkEndpoint = (*endpoint)(nil)
+var _ stack.BatchableLinkEndpoint = (*endpoint)(nil)
 var _ stack.GSOEndpoint = (*endpoint)(nil)
 
 type endpoint struct {
@@ -227,7 +227,7 @@ var fanoutID int32 = int32(unix.Getpid())
 // Makes fd non-blocking, but does not take ownership of fd, which must remain
 // open for the lifetime of the returned endpoint (until after the endpoint has
 // stopped being using and Wait returns).
-func New(opts *Options) (stack.LinkEndpoint, error) {
+func New(opts *Options) (stack.BatchableLinkEndpoint, error) {
 	caps := stack.LinkEndpointCapabilities(0)
 	if opts.RXChecksumOffload {
 		caps |= stack.CapabilityRXChecksumOffload

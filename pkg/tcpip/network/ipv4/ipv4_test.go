@@ -1572,89 +1572,6 @@ func TestFragmentationWritePacket(t *testing.T) {
 	}
 }
 
-func TestFragmentationWritePackets(t *testing.T) {
-	const ttl = 42
-	writePacketsTests := []struct {
-		description  string
-		insertBefore int
-		insertAfter  int
-	}{
-		{
-			description:  "Single packet",
-			insertBefore: 0,
-			insertAfter:  0,
-		},
-		{
-			description:  "With packet before",
-			insertBefore: 1,
-			insertAfter:  0,
-		},
-		{
-			description:  "With packet after",
-			insertBefore: 0,
-			insertAfter:  1,
-		},
-		{
-			description:  "With packet before and after",
-			insertBefore: 1,
-			insertAfter:  1,
-		},
-	}
-	tinyPacket := iptestutil.MakeRandPkt(header.TCPMinimumSize, extraHeaderReserve+header.IPv4MinimumSize, []int{1}, header.IPv4ProtocolNumber)
-
-	for _, test := range writePacketsTests {
-		t.Run(test.description, func(t *testing.T) {
-			for _, ft := range fragmentationTests {
-				t.Run(ft.description, func(t *testing.T) {
-					var pkts stack.PacketBufferList
-					for i := 0; i < test.insertBefore; i++ {
-						pkts.PushBack(tinyPacket.Clone())
-					}
-					pkt := iptestutil.MakeRandPkt(ft.transportHeaderLength, extraHeaderReserve+header.IPv4MinimumSize, []int{ft.payloadSize}, header.IPv4ProtocolNumber)
-					pkts.PushBack(pkt.Clone())
-					for i := 0; i < test.insertAfter; i++ {
-						pkts.PushBack(tinyPacket.Clone())
-					}
-
-					ep := iptestutil.NewMockLinkEndpoint(ft.mtu, nil, math.MaxInt32)
-					r := buildRoute(t, ep)
-
-					wantTotalPackets := len(ft.wantFragments) + test.insertBefore + test.insertAfter
-					n, err := r.WritePackets(pkts, stack.NetworkHeaderParams{
-						Protocol: tcp.ProtocolNumber,
-						TTL:      ttl,
-						TOS:      stack.DefaultTOS,
-					})
-					if err != nil {
-						t.Errorf("got WritePackets(_, _, _) = (_, %s), want = (_, nil)", err)
-					}
-					if n != wantTotalPackets {
-						t.Errorf("got WritePackets(_, _, _) = (%d, _), want = (%d, _)", n, wantTotalPackets)
-					}
-					if got := len(ep.WrittenPackets); got != wantTotalPackets {
-						t.Errorf("got len(ep.WrittenPackets) = %d, want = %d", got, wantTotalPackets)
-					}
-					if got := int(r.Stats().IP.PacketsSent.Value()); got != wantTotalPackets {
-						t.Errorf("got c.Route.Stats().IP.PacketsSent.Value() = %d, want = %d", got, wantTotalPackets)
-					}
-					if got := int(r.Stats().IP.OutgoingPacketErrors.Value()); got != 0 {
-						t.Errorf("got r.Stats().IP.OutgoingPacketErrors.Value() = %d, want = 0", got)
-					}
-
-					if wantTotalPackets == 0 {
-						return
-					}
-
-					fragments := ep.WrittenPackets[test.insertBefore : len(ft.wantFragments)+test.insertBefore]
-					if err := compareFragments(fragments, pkt, ft.mtu, ft.wantFragments, tcp.ProtocolNumber, false /* withIPHeader */, extraHeaderReserve); err != nil {
-						t.Error(err)
-					}
-				})
-			}
-		})
-	}
-}
-
 // TestFragmentationErrors checks that errors are returned from WritePacket
 // correctly.
 func TestFragmentationErrors(t *testing.T) {
@@ -2945,11 +2862,6 @@ func TestWriteStats(t *testing.T) {
 					nWritten++
 				}
 				return nWritten, nil
-			},
-		}, {
-			name: "WritePackets",
-			writePackets: func(rt *stack.Route, pkts stack.PacketBufferList) (int, tcpip.Error) {
-				return rt.WritePackets(pkts, stack.NetworkHeaderParams{})
 			},
 		},
 	}

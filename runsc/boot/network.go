@@ -212,7 +212,7 @@ func (n *Network) CreateLinksAndRoutes(args *CreateLinksAndRoutesArgs, _ *struct
 		mac := tcpip.LinkAddress(link.LinkAddress)
 		log.Infof("gso max size is: %d", link.GSOMaxSize)
 
-		linkEP, err := fdbased.New(&fdbased.Options{
+		batchedLinkEP, err := fdbased.New(&fdbased.Options{
 			FDs:                FDs,
 			MTU:                uint32(link.MTU),
 			EthernetHeader:     mac != "",
@@ -227,11 +227,13 @@ func (n *Network) CreateLinksAndRoutes(args *CreateLinksAndRoutesArgs, _ *struct
 			return err
 		}
 
+		var linkEP stack.LinkEndpoint
 		switch link.QDisc {
 		case config.QDiscNone:
+			linkEP = stack.LinkEndpoint(batchedLinkEP)
 		case config.QDiscFIFO:
 			log.Infof("Enabling FIFO QDisc on %q", link.Name)
-			linkEP = fifo.New(linkEP, runtime.GOMAXPROCS(0), 1000)
+			linkEP = fifo.New(batchedLinkEP, runtime.GOMAXPROCS(0), 1000)
 		}
 
 		log.Infof("Enabling interface %q with id %d on addresses %+v (%v) w/ %d channels", link.Name, nicID, link.Addresses, mac, link.NumChannels)

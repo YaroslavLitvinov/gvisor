@@ -84,17 +84,6 @@ func (m *InjectableEndpoint) InjectInbound(protocol tcpip.NetworkProtocolNumber,
 	m.dispatcher.DeliverNetworkPacket("" /* remote */, "" /* local */, protocol, pkt)
 }
 
-// WritePackets writes outbound packets to the appropriate
-// LinkInjectableEndpoint based on the RemoteAddress. HandleLocal only works if
-// r.RemoteAddress has a route registered in this endpoint.
-func (m *InjectableEndpoint) WritePackets(r stack.RouteInfo, pkts stack.PacketBufferList, protocol tcpip.NetworkProtocolNumber) (int, tcpip.Error) {
-	endpoint, ok := m.routes[r.RemoteAddress]
-	if !ok {
-		return 0, &tcpip.ErrNoRoute{}
-	}
-	return endpoint.WritePackets(r, pkts, protocol)
-}
-
 // WritePacket writes outbound packets to the appropriate LinkInjectableEndpoint
 // based on the RemoteAddress. HandleLocal only works if r.RemoteAddress has a
 // route registered in this endpoint.
